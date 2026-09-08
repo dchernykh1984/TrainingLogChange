@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from tests.conftest import text, texts, values
 from training_log_change.xml_base import (
     format_number,
     format_timestamp,
@@ -78,42 +79,73 @@ def test_a_number_may_be_padded_with_whitespace():
 
 
 ENTITY_TCX = """<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE TrainingCenterDatabase [ <!ENTITY note "recorded indoors"> ]>
+<!DOCTYPE TrainingCenterDatabase [
+<!ENTITY start "2024-03-31T10:00:00.000Z">
+<!ENTITY spike "250">
+]>
 <TrainingCenterDatabase xmlns="urn:x">
   <Activities><Activity>
-    <Id>2024-03-31T10:00:00.000Z</Id>
-    <Notes>&note;</Notes>
+    <Id>&start;</Id>
+    <Lap StartTime="&start;">
+      <MaximumHeartRateBpm><Value>250</Value></MaximumHeartRateBpm>
+      <Track>
+        <Trackpoint>
+          <Time>2024-03-31T10:00:10.000Z</Time>
+          <HeartRateBpm><Value>&spike;</Value></HeartRateBpm>
+        </Trackpoint>
+        <Trackpoint>
+          <Time>2024-03-31T10:00:20.000Z</Time>
+          <HeartRateBpm><Value>120</Value></HeartRateBpm>
+        </Trackpoint>
+      </Track>
+    </Lap>
   </Activity></Activities>
 </TrainingCenterDatabase>
 """
 
 
-def test_an_entity_reference_is_written_back_unexpanded(tmp_path):
+def entity_activity(tmp_path):
+    path = tmp_path / "activity.tcx"
+    path.write_text(ENTITY_TCX)
+    return path
+
+
+def test_a_timestamp_written_as_an_entity_is_still_moved(tmp_path):
     from datetime import datetime
 
     from training_log_change.tcx import TcxModifier
 
-    path = tmp_path / "activity.tcx"
-    path.write_text(ENTITY_TCX)
     out = tmp_path / "out.tcx"
-
-    modifier = TcxModifier(str(path))
+    modifier = TcxModifier(str(entity_activity(tmp_path)))
     modifier.update_start_time(datetime(2025, 1, 1, tzinfo=UTC))
     modifier.save(str(out))
-    written = out.read_text()
 
-    # The declaration keeps its replacement text; the reference stays a
-    # reference instead of being silently rewritten into that text.
-    assert "<Notes>&note;</Notes>" in written
-    assert "<Notes>recorded indoors</Notes>" not in written
+    # The activity start has to keep matching its own track.
+    assert text(out, "Id") == "2025-01-01T00:00:00.000Z"
+    assert texts(out, "Time")[0] == "2025-01-01T00:00:10.000Z"
+
+
+def test_a_reading_written_as_an_entity_is_still_cleaned(tmp_path):
+    from training_log_change.tcx import TcxModifier
+
+    out = tmp_path / "out.tcx"
+    modifier = TcxModifier(str(entity_activity(tmp_path)))
+    modifier.cleanup_heart_rate(180)
+    modifier.save(str(out))
+
+    # Skipping the sample while repairing the summary above it would leave the
+    # lap reporting a maximum of 120 over a sample of 250.
+    assert values(out, "HeartRateBpm") == ["0", "120"]
+    assert values(out, "MaximumHeartRateBpm") == ["120"]
 
 
 def test_a_document_type_definition_cannot_reach_outside_the_file(tmp_path):
+    from training_log_change.base import ActivityFormatError
     from training_log_change.tcx import TcxModifier
 
     secret = tmp_path / "secret.txt"
     secret.write_text("TOP-SECRET-TOKEN")
-    path = tmp_path / "activity.tcx"
+    path = tmp_path / "external.tcx"
     path.write_text(
         '<?xml version="1.0"?>\n'
         "<!DOCTYPE TrainingCenterDatabase "
@@ -122,10 +154,8 @@ def test_a_document_type_definition_cannot_reach_outside_the_file(tmp_path):
         "<Id>2024-03-31T10:00:00.000Z</Id><Notes>&xxe;</Notes>"
         "</TrainingCenterDatabase>"
     )
-    out = tmp_path / "out.tcx"
 
-    modifier = TcxModifier(str(path))
-    modifier.speedup(2.0)
-    modifier.save(str(out))
-
-    assert "TOP-SECRET-TOKEN" not in out.read_text()
+    # The entity is never fetched, so it stays undefined and the file is
+    # rejected rather than quietly absorbing the target.
+    with pytest.raises(ActivityFormatError):
+        TcxModifier(str(path))
