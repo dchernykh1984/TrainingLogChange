@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from collections.abc import Sequence
 from datetime import datetime
@@ -36,6 +37,11 @@ def positive_float(text: str) -> float:
         value = float(text)
     except ValueError:
         raise argparse.ArgumentTypeError(f"not a number: '{text}'") from None
+    # float() accepts "nan" and "inf", which pass a > 0 test and then fail deep
+    # inside a modifier: nan compares false against everything, and both blow up
+    # when a timestamp is converted back to an integer.
+    if not math.isfinite(value):
+        raise argparse.ArgumentTypeError(f"must be a finite number, got {value}")
     if value <= 0:
         raise argparse.ArgumentTypeError(f"must be greater than zero, got {value}")
     return value

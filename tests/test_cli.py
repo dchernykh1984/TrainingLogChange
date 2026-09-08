@@ -169,3 +169,15 @@ def test_a_change_the_format_cannot_hold_is_reported(fit_path, tmp_path, capsys)
     assert main([str(fit_path), str(out), "--speedup", "20"]) == 1
 
     assert "does not fit in a FIT file" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+def test_a_speedup_that_is_not_a_finite_number_is_rejected(
+    tcx_path, tmp_path, capsys, value
+):
+    # Attached with "=" so a leading minus is read as the value and not as the
+    # start of another option.
+    with pytest.raises(SystemExit):
+        main([str(tcx_path), str(tmp_path / "out.tcx"), f"--speedup={value}"])
+
+    assert "finite" in capsys.readouterr().err
