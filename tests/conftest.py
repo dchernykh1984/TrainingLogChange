@@ -227,3 +227,30 @@ def gpx_path(tmp_path: Path) -> Path:
     path = tmp_path / "activity.gpx"
     path.write_text(SAMPLE_GPX)
     return path
+
+
+@pytest.fixture
+def fit_dropout_path(tmp_path: Path) -> Path:
+    """A FIT file whose middle record lost its heart rate and speed.
+
+    Clearing the fields and re-encoding writes FIT's invalid marker for them,
+    because the record layout is declared once for the whole activity and every
+    field is written on every record. This is what a strap or meter dropping out
+    looks like in a real file.
+    """
+    from fit_tool.fit_file import FitFile
+    from fit_tool.profile.messages.record_message import RecordMessage
+
+    source = tmp_path / "source.fit"
+    _build_fit(source)
+
+    fit = FitFile.from_file(str(source))
+    records = [
+        record for record in fit.records if isinstance(record.message, RecordMessage)
+    ]
+    records[1].message.heart_rate = None
+    records[1].message.speed = None
+
+    path = tmp_path / "dropout.fit"
+    fit.to_file(str(path))
+    return path

@@ -101,6 +101,11 @@ activity, and if the file has no readings to go on at all the summaries are left
 as recorded -- a lap reporting a maximum of zero beside a non-zero average is a
 worse file than the one that came in.
 
+A FIT file declares its record layout once and writes every field on every
+record, so a strap or meter that drops out is stored as the invalid marker for
+that field's type. Those are read as gaps, not as readings: a dropout is never
+zeroed, never scaled, and never becomes the peak a summary is repaired to.
+
 Lap averages are left as recorded. Recomputing an average from unevenly spaced
 samples is guesswork, and a wrong average is worse than a stale one.
 

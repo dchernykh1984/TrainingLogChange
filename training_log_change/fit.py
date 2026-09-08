@@ -51,7 +51,25 @@ WALL_CLOCK = "local_date_time"
 TIME_TYPES = frozenset({INSTANT, WALL_CLOCK})
 
 
+def _is_dropout(field: Field) -> bool:
+    """Does this field hold FIT's marker for "nothing was recorded here"?
+
+    A FIT file declares its record layout once and then writes every field on
+    every record, so a strap or meter that drops out is written as the invalid
+    pattern for the field's base type -- 0xFF for a heart rate, 0xFFFF for a
+    speed. fit-tool scales that pattern like any other number, so the gap comes
+    back as a plausible-looking 255 bpm or 65.535 m/s.
+    """
+    raw = field.encoded_values
+    if not raw:
+        return False
+    invalid = field.base_type.invalid_raw_value()
+    return all(value == invalid for value in raw)
+
+
 def _read(message: DataMessage, field: Field) -> float | int | None:
+    if _is_dropout(field):
+        return None
     value = field.get_value(sub_field=field.get_valid_sub_field(message.fields))
     return value if isinstance(value, (int, float)) else None
 
