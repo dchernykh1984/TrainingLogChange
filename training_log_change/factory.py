@@ -5,10 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from training_log_change.base import TrackModifier
+from training_log_change.fit import FitModifier
 from training_log_change.tcx import TcxModifier
 
 MODIFIERS: dict[str, type[TrackModifier]] = {
     ".tcx": TcxModifier,
+    ".fit": FitModifier,
 }
 
 

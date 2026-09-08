@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 from tests.conftest import text, texts, values
+from training_log_change.base import ActivityFormatError
 from training_log_change.tcx import TcxModifier
-from training_log_change.xml_base import ActivityFormatError
 
 
 def modified(tcx_path: Path, tmp_path: Path, change) -> Path:
