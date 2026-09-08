@@ -208,3 +208,44 @@ def test_summaries_are_left_alone_when_the_file_has_no_such_readings(
 
     assert only(out, LapMessage).max_power == 2000
     assert only(out, SessionMessage).max_power == 2000
+
+
+def test_a_dropout_is_not_a_reading(fit_dropout_path):
+    # 0xFF and 0xFFFF scale to a plausible 255 bpm and 65.535 m/s, so a gap that
+    # is read as a value gets cleaned, scaled and summarised like real data.
+    modifier = FitModifier(str(fit_dropout_path))
+    records = [
+        record.message
+        for record in modifier.fit.records
+        if isinstance(record.message, RecordMessage)
+    ]
+
+    from training_log_change.fit import _read
+
+    for name in ("heart_rate", "speed"):
+        assert _read(records[1], records[1].get_field_by_name(name)) is None
+        assert _read(records[0], records[0].get_field_by_name(name)) is not None
+
+
+def test_a_cleanup_leaves_a_dropout_as_a_dropout(fit_dropout_path, tmp_path):
+    out = modified(fit_dropout_path, tmp_path, lambda m: m.cleanup_heart_rate(200))
+
+    # Rewriting the gap to 0 would turn "no reading" into a recorded 0 bpm.
+    assert [m.heart_rate for m in messages(out, RecordMessage)] == [140, 255, 150]
+
+
+def test_a_dropout_never_becomes_the_peak_a_summary_is_repaired_to(
+    fit_dropout_path, tmp_path
+):
+    out = modified(fit_dropout_path, tmp_path, lambda m: m.cleanup_heart_rate(145))
+
+    assert only(out, LapMessage).max_heart_rate == 140
+
+
+def test_speedup_does_not_scale_a_dropout_out_of_range(fit_dropout_path, tmp_path):
+    # 65.535 m/s times 1.1 encodes to 72088, past the top of a uint16.
+    out = modified(fit_dropout_path, tmp_path, lambda m: m.speedup(1.1))
+
+    speeds = [m.speed for m in messages(out, RecordMessage)]
+    assert speeds[1] == 65.535
+    assert speeds[0] == pytest.approx(5.5)
