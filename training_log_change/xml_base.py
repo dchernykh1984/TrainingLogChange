@@ -14,12 +14,7 @@ from datetime import UTC, datetime
 
 from lxml import etree
 
-from training_log_change.base import TrackModifier
-
-
-class ActivityFormatError(Exception):
-    """The file could not be read as an activity of the expected format."""
-
+from training_log_change.base import ActivityFormatError, TrackModifier
 
 _TIMESTAMP = re.compile(
     r"^(?P<naive>\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})"

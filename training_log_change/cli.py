@@ -7,14 +7,14 @@ import sys
 from collections.abc import Sequence
 from datetime import datetime
 
-from training_log_change.base import TrackModifier
+from training_log_change.base import ActivityFormatError, TrackModifier
 from training_log_change.factory import (
     MODIFIERS,
     UnsupportedFormatError,
     format_of,
     open_track,
 )
-from training_log_change.xml_base import ActivityFormatError, parse_timestamp
+from training_log_change.xml_base import parse_timestamp
 
 
 def valid_date(text: str) -> datetime:

@@ -6,6 +6,10 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 
+class ActivityFormatError(Exception):
+    """The file could not be read as an activity of the expected format."""
+
+
 class TrackModifier(ABC):
     """Read a recorded activity, change it in place and write it back.
 
