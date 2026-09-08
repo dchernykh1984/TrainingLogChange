@@ -10,16 +10,38 @@ fields, device settings, HRV data -- come out exactly as they went in.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
 from fit_tool.data_message import DataMessage
+from fit_tool.exceptions import FitError
 from fit_tool.field import Field
 from fit_tool.fit_file import FitFile
 from fit_tool.profile.messages.lap_message import LapMessage
 from fit_tool.profile.messages.record_message import RecordMessage
 from fit_tool.profile.messages.session_message import SessionMessage
 
-from training_log_change.base import ActivityFormatError, TrackModifier
+from training_log_change.base import (
+    ActivityFormatError,
+    ActivityValueError,
+    TrackModifier,
+)
+
+
+@contextmanager
+def _storable(change: str) -> Iterator[None]:
+    """Turn fit-tool's encoding refusal into something the CLI can report.
+
+    FIT stores a speed as a scaled uint16 and a timestamp as a uint32, so a
+    large enough multiplier or a distant enough date produces a value the format
+    has no room for. fit-tool rejects it on the way in, which is the right
+    answer; it just should not reach the user as a traceback.
+    """
+    try:
+        yield
+    except FitError as exc:
+        raise ActivityValueError(f"{change} does not fit in a FIT file: {exc}") from exc
+
 
 #: FIT counts its local timestamps in seconds from this moment.
 FIT_EPOCH = datetime(1989, 12, 31, tzinfo=UTC)
@@ -119,7 +141,8 @@ class FitModifier(TrackModifier):
             raise ActivityFormatError(f"{file_path} contains no timestamps")
 
     def save(self, file_path: str) -> None:
-        self.fit.to_file(file_path)
+        with _storable("the change"):
+            self.fit.to_file(file_path)
 
     # -- messages -----------------------------------------------------------
 
@@ -209,7 +232,8 @@ class FitModifier(TrackModifier):
         if start_time.tzinfo is None:
             start_time = start_time.replace(tzinfo=UTC)
         offset = start_time - self.start_time()
-        self._shift_times(lambda moment, _start: moment + offset)
+        with _storable(f"a start of {start_time.isoformat()}"):
+            self._shift_times(lambda moment, _start: moment + offset)
 
     # -- operations ---------------------------------------------------------
 
@@ -218,8 +242,11 @@ class FitModifier(TrackModifier):
             raise ValueError("speedup multiplier must be positive")
         factors = {name: multiplier for name in self.FASTER_FIELDS}
         factors.update({name: 1 / multiplier for name in self.SHORTER_FIELDS})
-        self._scale_numbers(factors)
-        self._shift_times(lambda moment, start: start + (moment - start) / multiplier)
+        with _storable(f"a speedup of {multiplier}"):
+            self._scale_numbers(factors)
+            self._shift_times(
+                lambda moment, start: start + (moment - start) / multiplier
+            )
 
     def _scale_numbers(self, factors: Mapping[str, float]) -> None:
         for message in self._messages():

@@ -161,3 +161,11 @@ def test_an_output_that_cannot_be_written_is_reported(tcx_path, tmp_path, capsys
     assert main([str(tcx_path), str(unwritable), "--speedup", "2"]) == 1
 
     assert "error:" in capsys.readouterr().err
+
+
+def test_a_change_the_format_cannot_hold_is_reported(fit_path, tmp_path, capsys):
+    out = tmp_path / "out.fit"
+
+    assert main([str(fit_path), str(out), "--speedup", "20"]) == 1
+
+    assert "does not fit in a FIT file" in capsys.readouterr().err

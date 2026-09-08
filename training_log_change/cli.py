@@ -7,7 +7,11 @@ import sys
 from collections.abc import Sequence
 from datetime import datetime
 
-from training_log_change.base import ActivityFormatError, TrackModifier
+from training_log_change.base import (
+    ActivityFormatError,
+    ActivityValueError,
+    TrackModifier,
+)
 from training_log_change.factory import (
     MODIFIERS,
     UnsupportedFormatError,
@@ -130,7 +134,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("nothing to do: no modification was requested", file=sys.stderr)
             return 1
         modifier.save(args.output)
-    except (ActivityFormatError, OSError) as exc:
+    except (ActivityFormatError, ActivityValueError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

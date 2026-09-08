@@ -124,6 +124,13 @@ FIT stores time in two shapes -- an instant, and the zone-less local wall clock
 the athlete saw. The wall clock follows the instant recorded beside it, so its
 UTC offset is preserved by both a speedup and a move.
 
+### Limits
+
+FIT stores a speed as a scaled 16-bit integer and a timestamp as a 32-bit one,
+so a large enough `--speedup` or a distant enough `--start-date` produces a value
+the format has no room for. That is reported as an error rather than written as a
+corrupt file. TCX and GPX are text and have no such ceiling.
+
 ## Development
 
 Python 3.11+.

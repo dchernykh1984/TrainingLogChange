@@ -10,6 +10,10 @@ class ActivityFormatError(Exception):
     """The file could not be read as an activity of the expected format."""
 
 
+class ActivityValueError(Exception):
+    """The requested change produces a value the format cannot store."""
+
+
 class TrackModifier(ABC):
     """Read a recorded activity, change it in place and write it back.
 
