@@ -27,6 +27,16 @@ def valid_date(text: str) -> datetime:
     return parsed[0]
 
 
+def positive_float(text: str) -> float:
+    try:
+        value = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number: '{text}'") from None
+    if value <= 0:
+        raise argparse.ArgumentTypeError(f"must be greater than zero, got {value}")
+    return value
+
+
 def build_parser() -> argparse.ArgumentParser:
     supported = ", ".join(sorted(MODIFIERS))
     parser = argparse.ArgumentParser(
@@ -41,7 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--speedup",
         "-s",
-        type=float,
+        type=positive_float,
         help="Speed multiplier, e.g. 1.1 for a 10%% speedup",
     )
     parser.add_argument(
@@ -114,11 +124,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    applied = apply(modifier, args)
-    if not applied:
-        print("nothing to do: no modification was requested", file=sys.stderr)
+    try:
+        applied = apply(modifier, args)
+        if not applied:
+            print("nothing to do: no modification was requested", file=sys.stderr)
+            return 1
+        modifier.save(args.output)
+    except (ActivityFormatError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    modifier.save(args.output)
     print(f"{args.input} -> {args.output}: {', '.join(applied)}")
     return 0

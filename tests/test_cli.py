@@ -127,3 +127,37 @@ def test_it_applies_a_cadence_cap_and_a_new_start_date(tcx_path, tmp_path):
 
     assert texts(out, "Cadence") == ["85", "90", "0", "88"]
     assert texts(out, "Time")[0] == "2025-01-01T08:00:00.000Z"
+
+
+def test_a_non_positive_speedup_is_rejected_by_the_parser(tcx_path, tmp_path, capsys):
+    with pytest.raises(SystemExit):
+        main([str(tcx_path), str(tmp_path / "out.tcx"), "--speedup", "0"])
+
+    assert "greater than zero" in capsys.readouterr().err
+
+
+def test_a_speedup_that_is_not_a_number_is_rejected(tcx_path, tmp_path, capsys):
+    with pytest.raises(SystemExit):
+        main([str(tcx_path), str(tmp_path / "out.tcx"), "--speedup", "fast"])
+
+    assert "not a number" in capsys.readouterr().err
+
+
+def test_an_activity_that_cannot_be_modified_is_reported(tmp_path, capsys):
+    path = tmp_path / "empty.tcx"
+    path.write_text(
+        '<?xml version="1.0"?>'
+        '<TrainingCenterDatabase xmlns="urn:x"><Activities/></TrainingCenterDatabase>'
+    )
+
+    assert main([str(path), str(tmp_path / "out.tcx"), "--speedup", "2"]) == 1
+
+    assert "no timestamps" in capsys.readouterr().err
+
+
+def test_an_output_that_cannot_be_written_is_reported(tcx_path, tmp_path, capsys):
+    unwritable = tmp_path / "missing directory" / "out.tcx"
+
+    assert main([str(tcx_path), str(unwritable), "--speedup", "2"]) == 1
+
+    assert "error:" in capsys.readouterr().err
