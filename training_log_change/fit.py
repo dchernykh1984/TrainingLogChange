@@ -228,14 +228,22 @@ class FitModifier(TrackModifier):
         A lap that recorded a 2000 W spike also reports max_power 2000. Records
         are a flat stream in FIT rather than children of a lap, so each summary
         is repaired from the samples that fall inside its own start..end window.
+
+        A window that catches no samples falls back to the peak of the whole
+        activity: an empty window usually means the summary and the records
+        disagree about the boundary, not that nothing was recorded. If the file
+        carries no readings of this kind at all there is nothing to reason from,
+        and the summaries are left as recorded rather than zeroed.
         """
         samples = self._zero_samples(tuple(sample_names), limit)
+        if not samples:
+            return
+        overall = max(value for _, value in samples)
         summary_names = tuple(summary_names)
         for message in self._summaries():
             window = self._window(message)
-            peak = max(
-                (value for moment, value in samples if window(moment)), default=0.0
-            )
+            within = [value for moment, value in samples if window(moment)]
+            peak = max(within) if within else overall
             for name in summary_names:
                 field = message.get_field_by_name(name)
                 value = _read(message, field) if field is not None else None
