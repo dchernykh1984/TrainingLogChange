@@ -175,3 +175,36 @@ def test_a_file_that_is_not_fit_is_rejected(tmp_path):
 def test_a_missing_file_raises_the_underlying_os_error(tmp_path):
     with pytest.raises(OSError):
         FitModifier(str(tmp_path / "missing.fit"))
+
+
+def test_a_summary_whose_window_catches_nothing_uses_the_whole_activity(
+    fit_path, tmp_path
+):
+    # Push the lap window ahead of every record. An empty window means the
+    # summary and the records disagree about the boundary, not that the lap
+    # recorded nothing, so its max_heart_rate must not collapse to zero.
+    def change(modifier):
+        for record in modifier.fit.records:
+            if isinstance(record.message, LapMessage):
+                record.message.start_time = FIT_START_MS + 600_000
+                record.message.timestamp = FIT_START_MS + 900_000
+        modifier.cleanup_heart_rate(200)
+
+    out = modified(fit_path, tmp_path, change)
+
+    assert only(out, LapMessage).max_heart_rate == 150
+
+
+def test_summaries_are_left_alone_when_the_file_has_no_such_readings(
+    fit_path, tmp_path
+):
+    def change(modifier):
+        for record in modifier.fit.records:
+            if isinstance(record.message, RecordMessage):
+                record.message.power = None
+        modifier.cleanup_power(1000)
+
+    out = modified(fit_path, tmp_path, change)
+
+    assert only(out, LapMessage).max_power == 2000
+    assert only(out, SessionMessage).max_power == 2000

@@ -89,8 +89,11 @@ that is itself out of range (`MaximumHeartRateBpm`, `MaxWatts`,
 `MaxBikeCadence`, `MaxRunCadence`; `max_heart_rate`, `max_power`, `max_cadence`,
 `max_running_cadence` in FIT) is reset to the highest value the lap still has.
 In FIT, records are a flat stream rather than children of a lap, so each lap and
-session is repaired from the samples inside its own start-to-end window. GPX
-records no summaries, so there is nothing to repair.
+session is repaired from the samples inside its own start-to-end window; a
+window that catches no samples falls back to the whole activity, since an empty
+window usually means the summary and the records disagree about the boundary
+rather than that nothing was recorded. GPX records no summaries, so there is
+nothing to repair.
 
 That replacement value has to come from somewhere. A lap whose track carries no
 readings of the kind being cleaned falls back to the peak of the rest of the
