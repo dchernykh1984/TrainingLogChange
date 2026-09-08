@@ -61,6 +61,57 @@ SAMPLE_TCX = f"""<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
+GPX_NS = "http://www.topografix.com/GPX/1/1"
+TPX_EXT_NS = "http://www.garmin.com/xmlschemas/TrackPointExtension/v1"
+POWER_EXT_NS = "http://www.garmin.com/xmlschemas/PowerExtension/v1"
+
+# The same ride as SAMPLE_TCX, and the same spike, but written the way a GPX
+# export writes it: whole-second timestamps with no fraction, sensor readings in
+# the extension namespaces, and no lap summary anywhere.
+SAMPLE_GPX = f"""<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Garmin Connect" xmlns="{GPX_NS}"
+     xmlns:gpxtpx="{TPX_EXT_NS}" xmlns:gpxpx="{POWER_EXT_NS}">
+  <metadata><time>2024-03-31T10:00:00Z</time></metadata>
+  <trk>
+    <name>Ride</name>
+    <type>cycling</type>
+    <trkseg>
+      <trkpt lat="55.0" lon="37.0">
+        <ele>150.0</ele>
+        <time>2024-03-31T10:00:00Z</time>
+        <extensions>
+          <gpxpx:PowerInWatts>200</gpxpx:PowerInWatts>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>140</gpxtpx:hr><gpxtpx:cad>90</gpxtpx:cad>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+      <trkpt lat="55.001" lon="37.001">
+        <ele>151.0</ele>
+        <time>2024-03-31T10:00:10Z</time>
+        <extensions>
+          <gpxpx:PowerInWatts>2000</gpxpx:PowerInWatts>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>230</gpxtpx:hr><gpxtpx:cad>200</gpxtpx:cad>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+      <trkpt lat="55.002" lon="37.002">
+        <ele>152.0</ele>
+        <time>2024-03-31T10:00:20Z</time>
+        <extensions>
+          <gpxpx:PowerInWatts>210</gpxpx:PowerInWatts>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>150</gpxtpx:hr><gpxtpx:cad>88</gpxtpx:cad>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>
+"""
+
+
 @pytest.fixture
 def tcx_path(tmp_path: Path) -> Path:
     path = tmp_path / "activity.tcx"
@@ -168,4 +219,11 @@ def _build_fit(path: Path) -> None:
 def fit_path(tmp_path: Path) -> Path:
     path = tmp_path / "activity.fit"
     _build_fit(path)
+    return path
+
+
+@pytest.fixture
+def gpx_path(tmp_path: Path) -> Path:
+    path = tmp_path / "activity.gpx"
+    path.write_text(SAMPLE_GPX)
     return path
