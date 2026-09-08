@@ -95,3 +95,77 @@ def values(path: Path, parent_name: str) -> list[str]:
         for child in element
         if isinstance(child.tag, str) and child.tag.split("}")[-1] == "Value"
     ]
+
+
+# The FIT equivalent of SAMPLE_TCX, built rather than checked in: a binary
+# fixture nobody can read in a diff is a liability, and the builder states the
+# expected values in the same place the tests read them.
+FIT_START_MS = 1711879200000  # 2024-03-31T10:00:00Z
+FIT_EPOCH_OFFSET_S = 631065600  # 1989-12-31T00:00:00Z, where FIT counts from
+FIT_LOCAL_OFFSET_S = 3 * 3600  # the recording device was three hours ahead
+FIT_SAMPLES = (
+    # heart rate, cadence, power, speed
+    (140, 90, 200, 5.0),
+    (230, 200, 2000, 6.0),
+    (150, 88, 210, 7.0),
+)
+
+
+def _build_fit(path: Path) -> None:
+    from fit_tool.fit_file_builder import FitFileBuilder
+    from fit_tool.profile.messages.activity_message import ActivityMessage
+    from fit_tool.profile.messages.file_id_message import FileIdMessage
+    from fit_tool.profile.messages.lap_message import LapMessage
+    from fit_tool.profile.messages.record_message import RecordMessage
+    from fit_tool.profile.messages.session_message import SessionMessage
+    from fit_tool.profile.profile_type import FileType, Manufacturer, Sport
+
+    builder = FitFileBuilder(auto_define=True)
+
+    file_id = FileIdMessage()
+    file_id.type = FileType.ACTIVITY
+    file_id.manufacturer = Manufacturer.GARMIN.value
+    file_id.time_created = FIT_START_MS
+    builder.add(file_id)
+
+    for index, (hr, cadence, power, speed) in enumerate(FIT_SAMPLES):
+        record = RecordMessage()
+        record.timestamp = FIT_START_MS + index * 10_000
+        record.heart_rate = hr
+        record.cadence = cadence
+        record.power = power
+        record.speed = speed
+        record.distance = float(index * 50)
+        builder.add(record)
+
+    for summary in (LapMessage(), SessionMessage()):
+        summary.start_time = FIT_START_MS
+        summary.timestamp = FIT_START_MS + 20_000
+        summary.total_elapsed_time = 20.0
+        summary.total_timer_time = 20.0
+        summary.total_distance = 100.0
+        summary.avg_speed = 6.0
+        summary.max_speed = 7.0
+        summary.max_heart_rate = 230
+        summary.max_power = 2000
+        summary.max_cadence = 200
+        if isinstance(summary, SessionMessage):
+            summary.sport = Sport.CYCLING
+        builder.add(summary)
+
+    activity = ActivityMessage()
+    activity.timestamp = FIT_START_MS + 20_000
+    activity.local_timestamp = (
+        FIT_START_MS // 1000 - FIT_EPOCH_OFFSET_S + 20 + FIT_LOCAL_OFFSET_S
+    )
+    activity.total_timer_time = 20.0
+    builder.add(activity)
+
+    builder.build().to_file(str(path))
+
+
+@pytest.fixture
+def fit_path(tmp_path: Path) -> Path:
+    path = tmp_path / "activity.fit"
+    _build_fit(path)
+    return path
