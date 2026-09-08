@@ -1,79 +1,120 @@
 # TrainingLogChange
 
-Scripts for modifying a recorded training log: speeding the track up/down, shifting the
-start date and cleaning up bogus sensor readings.
+Change a recorded training activity: speed it up, move it to a different date,
+and drop the sensor readings that are obviously wrong. Reads and writes **TCX**,
+**FIT** and **GPX**.
 
-## Which format was chosen: TCX
+## Formats
 
-The original README said the choice between **FIT** and **GPX** had not been made yet.
-Looking at the code, the question is settled: the implementation works with **TCX**
-(Garmin Training Center XML, `.tcx`).
+The tool started out TCX-only. Garmin now uploads **FIT** to Strava by default,
+so the format the device actually produces was the one format it could not
+touch; FIT and GPX were added for that reason.
 
-Evidence in the code:
+| | TCX | FIT | GPX |
+| --- | --- | --- | --- |
+| What it is | Garmin Training Center XML | Garmin's binary activity format | The interchange format everything reads |
+| Read and written with | `lxml` | `fit-tool` | `lxml` |
+| Speed | `Speed`, `MaximumSpeed`, lap `MaxSpeed`/`AvgSpeed` | `speed`, `enhanced_speed`, `avg_speed`, `max_speed` | not in the format |
+| Duration | `TotalTimeSeconds` | `total_elapsed_time`, `total_timer_time`, `total_moving_time` | not in the format |
+| Heart rate | `HeartRateBpm` | `heart_rate` | `gpxtpx:hr` |
+| Cadence | `Cadence`, `RunCadence` | `cadence` | `gpxtpx:cad` |
+| Power | `Watts` | `power` | `gpxpx:PowerInWatts` or `<power>` |
+| Summaries repaired | per lap | per lap and session | none to repair |
 
-* [tcx_modifier.py](tcx_modifier.py) defines `TCXModifier`, the only modifier class in the repo, and
-  [main.py](main.py) uses it directly.
-* The file is parsed as XML with `lxml.etree` ([tcx_modifier.py:26](tcx_modifier.py#L26)) and written back
-  with an XML declaration in UTF-8 ([tcx_modifier.py:34-40](tcx_modifier.py#L34-L40)).
-* The tags it reads and rewrites are TCX-specific: `TotalTimeSeconds`, `MaximumSpeed`,
-  `Speed`, `Time`, `StartTime`, `Lap/@StartTime`, `HeartRateBpm/Value`
-  ([tcx_modifier.py:16-22](tcx_modifier.py#L16-L22)). Tags are matched by local name
-  (`element.tag.split("}")[-1]`), so the TCX namespaces -- including the
-  `ActivityExtension` namespace that carries power and cadence -- are handled transparently.
-
-Why TCX rather than the alternatives:
-
-* **GPX** is a route format. It carries track points and time, but heart rate, power,
-  cadence and lap summaries (`TotalTimeSeconds`, `MaximumSpeed`) only exist there as
-  vendor extensions, so a speed-up would have to rewrite half-standardised data.
-* **FIT** is a compact binary format. Editing it means a dedicated encoder/decoder
-  library and re-writing CRCs and message definitions; there is nothing to eyeball
-  when a value comes out wrong.
-* **TCX** is plain XML with all the fields this tool touches already in the schema, so
-  it can be edited with a stock XML library and diffed by hand. Garmin Connect, Strava
-  and most other services both export and import it.
+**The output is always the same format as the input.** Each modifier edits the
+file in its own native representation -- a parsed XML tree, or decoded FIT
+messages -- rather than projecting it onto a common model, so laps, vendor
+extensions and FIT developer fields survive a load and save untouched. For FIT
+that is exact: loading a file and saving it without asking for a change produces
+the same bytes. Converting between formats is deliberately not supported; it
+would mean dropping whatever the target format has no place for.
 
 ## Usage
 
 ```
-python main.py INPUT OUTPUT [--speedup S] [--max_hr N] [--max_power P] [--max_cadence C] [--start_date D]
+training-log-change INPUT OUTPUT [--speedup S] [--max-hr N] [--max-power P]
+                                 [--max-cadence C] [--start-date D]
 ```
+
+`python main.py INPUT OUTPUT ...` works too, and the original underscored option
+names (`--max_hr`, `--start_date`, ...) are still accepted.
 
 | Argument | Type | Description |
 | --- | --- | --- |
-| `input` | path | Source `.tcx` file |
-| `output` | path | Where the modified `.tcx` is written |
-| `--speedup`, `-s` | float | Speed multiplier: `1.1` makes the activity 10% faster. Scales `Speed`/`MaximumSpeed` up and `TotalTimeSeconds` down, and compresses every `Time` towards the start of the activity |
-| `--max_hr` | int | Heart rate values above this are treated as sensor errors |
-| `--max_power` | float | Power values above this are treated as sensor errors and zeroed (a power meter can report ~2 kW for a second while the rider is not pedalling at all) |
-| `--max_cadence` | int | Cadence values above this are treated as sensor errors and zeroed (a magnetic cadence sensor can report ~200 rpm for a second) |
-| `--start_date` | `%Y-%m-%dT%H:%M:%S.%fZ` | New start time, e.g. `2024-03-31T23:53:51.000Z`. Every `Time` and each `Lap/@StartTime` is shifted by the same offset |
+| `input` | path | Source `.tcx`, `.fit` or `.gpx` file |
+| `output` | path | Where the result is written, in the same format |
+| `--speedup`, `-s` | float | Speed multiplier: `1.1` makes the activity 10% faster |
+| `--max-hr` | int | Heart rate readings above this are zeroed |
+| `--max-power` | float | Power readings above this are zeroed |
+| `--max-cadence` | int | Cadence readings above this are zeroed |
+| `--start-date` | ISO 8601 | New start time, e.g. `2024-03-31T23:53:51.000Z` |
+
+Options are independent and are applied in this order: power, cadence, heart
+rate, speedup, start date. Asking for nothing is an error rather than a silent
+copy.
 
 Example -- make a ride 5% faster and move it to a different day:
 
 ```
-python main.py ride.tcx ride_fixed.tcx --speedup 1.05 --start_date 2024-03-31T23:53:51.000Z
+training-log-change ride.fit ride_fixed.fit --speedup 1.05 \
+    --start-date 2024-03-31T23:53:51.000Z
 ```
 
-The options are independent and are applied in this order: power cleanup, cadence
-cleanup, heart rate cleanup, speed-up, start date.
+### What a speedup does
 
-## Requirements
+`--speedup 1.1` scales the recorded speeds up by 10%, scales the recorded
+durations down, and pulls every timestamp towards the start of the activity so
+the same track is covered in less time. The start does not move. Distance is
+deliberately left alone: covering the same route in less time is exactly what
+makes the activity faster.
 
-Python 3.11+ and [lxml](https://lxml.de/). Dependencies and the lint/type/test tooling
-are declared in `pyproject.toml`:
+GPX has neither speed nor duration in its schema, so there a speedup is entirely
+a matter of compressing the timestamps, and the speed is whatever the reader
+computes from the points.
+
+Cadence is not scaled in any format. A rider who goes 10% faster has probably
+changed gear rather than spun 10% faster, and guessing which would be worse than
+leaving the recorded value alone.
+
+### What a cleanup does
+
+A power meter sometimes reports 2 kW for one second while the cyclist is not
+pedalling at all, a magnetic cadence sensor reports 200 rpm, and a chest strap
+losing contact reports a heart rate nobody can reach. `--max-power`,
+`--max-cadence` and `--max-hr` zero those samples.
+
+The lap that recorded the spike also summarises it, so zeroing the sample alone
+would leave the lap claiming a peak that appears nowhere in its track. A summary
+that is itself out of range (`MaximumHeartRateBpm`, `MaxWatts`,
+`MaxBikeCadence`, `MaxRunCadence`; `max_heart_rate`, `max_power`, `max_cadence`,
+`max_running_cadence` in FIT) is reset to the highest value the lap still has.
+In FIT, records are a flat stream rather than children of a lap, so each lap and
+session is repaired from the samples inside its own start-to-end window. GPX
+records no summaries, so there is nothing to repair.
+
+Lap averages are left as recorded. Recomputing an average from unevenly spaced
+samples is guesswork, and a wrong average is worse than a stale one.
+
+### Timestamps
+
+Timestamps are written back the way the file spelled them: TCX keeps its
+milliseconds, GPX keeps its whole seconds, and a numeric UTC offset stays a
+numeric UTC offset instead of being rewritten as if it were UTC.
+
+FIT stores time in two shapes -- an instant, and the zone-less local wall clock
+the athlete saw. The wall clock follows the instant recorded beside it, so its
+UTC offset is preserved by both a speedup and a move.
+
+## Development
+
+Python 3.11+.
 
 ```
 uv sync            # or: pip install -e . --group dev
 pre-commit install
+pytest
 ```
 
-## Status
-
-All operations are implemented for TCX: `speedup`, `update_start_time` and the
-`cleanup_*` family.
-
-A cleanup zeroes the out-of-range samples and then repairs the lap summary above
-them (`MaximumHeartRateBpm`, `MaxWatts`, `MaxBikeCadence`, `MaxRunCadence`), so a
-lap cannot keep claiming a peak that no longer appears in its track. Lap
-averages are left as recorded.
+`pyproject.toml` holds the dependencies and the ruff, mypy and pytest
+configuration. The pre-commit hooks run whitespace and line-ending checks, ruff,
+ruff-format, mypy, and commitizen on the commit message.
