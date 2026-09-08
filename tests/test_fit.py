@@ -14,7 +14,7 @@ from fit_tool.profile.messages.record_message import RecordMessage
 from fit_tool.profile.messages.session_message import SessionMessage
 
 from tests.conftest import FIT_EPOCH_OFFSET_S, FIT_LOCAL_OFFSET_S, FIT_START_MS
-from training_log_change.base import ActivityFormatError
+from training_log_change.base import ActivityFormatError, ActivityValueError
 from training_log_change.fit import FitModifier
 
 
@@ -249,3 +249,18 @@ def test_speedup_does_not_scale_a_dropout_out_of_range(fit_dropout_path, tmp_pat
     speeds = [m.speed for m in messages(out, RecordMessage)]
     assert speeds[1] == 65.535
     assert speeds[0] == pytest.approx(5.5)
+
+
+def test_a_speedup_too_large_for_the_format_is_reported_not_raised(fit_path, tmp_path):
+    # FIT stores speed as a scaled uint16, which tops out at 65.535 m/s.
+    modifier = FitModifier(str(fit_path))
+
+    with pytest.raises(ActivityValueError, match="does not fit in a FIT file"):
+        modifier.speedup(20)
+
+
+def test_a_start_date_the_format_cannot_hold_is_reported_not_raised(fit_path, tmp_path):
+    modifier = FitModifier(str(fit_path))
+
+    with pytest.raises(ActivityValueError, match="does not fit in a FIT file"):
+        modifier.update_start_time(datetime(2200, 1, 1, tzinfo=UTC))
