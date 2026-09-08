@@ -70,8 +70,10 @@ pre-commit install
 
 ## Status
 
-Implemented: `speedup`, `update_start_time`, `save`.
+All operations are implemented for TCX: `speedup`, `update_start_time` and the
+`cleanup_*` family.
 
-Not implemented yet (the methods exist as stubs and silently do nothing):
-`cleanup_heart_rate`, `cleanup_power`, `cleanup_canence` -- so `--max_hr`,
-`--max_power` and `--max_cadence` currently have no effect on the output.
+A cleanup zeroes the out-of-range samples and then repairs the lap summary above
+them (`MaximumHeartRateBpm`, `MaxWatts`, `MaxBikeCadence`, `MaxRunCadence`), so a
+lap cannot keep claiming a peak that no longer appears in its track. Lap
+averages are left as recorded.
