@@ -121,9 +121,16 @@ class XmlTrackModifier(TrackModifier):
     #: Local name of the document element, used to reject the wrong format.
     ROOT_NAME = ""
 
+    #: Entity references are left as references rather than expanded. lxml's
+    #: default parser expands them, which silently rewrites `&note;` into its
+    #: replacement text on save -- a change nobody asked for, in a tool whose
+    #: point is that only the requested values move. Turning resolution off also
+    #: keeps a document type definition from reaching outside the file at all.
+    PARSER = etree.XMLParser(resolve_entities=False, no_network=True)
+
     def __init__(self, file_path: str) -> None:
         try:
-            self.tree = etree.parse(file_path)
+            self.tree = etree.parse(file_path, self.PARSER)
         except etree.XMLSyntaxError as exc:
             raise ActivityFormatError(
                 f"{file_path} is not well-formed XML: {exc}"

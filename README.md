@@ -110,6 +110,10 @@ Timestamps are written back the way the file spelled them: TCX keeps its
 milliseconds, GPX keeps its whole seconds, and a numeric UTC offset stays a
 numeric UTC offset instead of being rewritten as if it were UTC.
 
+XML entity references are left as references rather than expanded, so a `&note;`
+in a TCX or GPX file is still a `&note;` after a round trip, and a document type
+definition never reaches outside the file being read.
+
 FIT stores time in two shapes -- an instant, and the zone-less local wall clock
 the athlete saw. The wall clock follows the instant recorded beside it, so its
 UTC offset is preserved by both a speedup and a move.
