@@ -73,3 +73,57 @@ def test_a_start_date_that_is_not_a_date_is_rejected(tcx_path, tmp_path, capsys)
 
 def test_valid_date_accepts_the_format_the_original_script_documented():
     assert valid_date("2024-03-31T23:53:51.000Z").year == 2024
+
+
+def test_writing_a_different_format_than_it_read_is_rejected(
+    tcx_path, tmp_path, capsys
+):
+    with pytest.raises(SystemExit):
+        main([str(tcx_path), str(tmp_path / "out.gpx"), "--speedup", "2"])
+
+    assert "converting between" in capsys.readouterr().err
+
+
+def test_it_runs_on_a_gpx_file(gpx_path, tmp_path):
+    out = tmp_path / "out.gpx"
+
+    assert main([str(gpx_path), str(out), "--max-hr", "200"]) == 0
+
+    assert texts(out, "hr") == ["140", "0", "150"]
+
+
+def test_it_runs_on_a_fit_file(fit_path, tmp_path):
+    from fit_tool.fit_file import FitFile
+    from fit_tool.profile.messages.record_message import RecordMessage
+
+    out = tmp_path / "out.fit"
+
+    assert main([str(fit_path), str(out), "--max-hr", "200"]) == 0
+
+    records = [
+        record.message
+        for record in FitFile.from_file(str(out)).records
+        if isinstance(record.message, RecordMessage)
+    ]
+    assert [record.heart_rate for record in records] == [140, 0, 150]
+
+
+def test_it_applies_a_cadence_cap_and_a_new_start_date(tcx_path, tmp_path):
+    out = tmp_path / "out.tcx"
+
+    assert (
+        main(
+            [
+                str(tcx_path),
+                str(out),
+                "--max-cadence",
+                "150",
+                "--start-date",
+                "2025-01-01T08:00:00.000Z",
+            ]
+        )
+        == 0
+    )
+
+    assert texts(out, "Cadence") == ["85", "90", "0", "88"]
+    assert texts(out, "Time")[0] == "2025-01-01T08:00:00.000Z"
