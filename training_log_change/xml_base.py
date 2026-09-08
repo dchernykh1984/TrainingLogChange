@@ -121,12 +121,21 @@ class XmlTrackModifier(TrackModifier):
     #: Local name of the document element, used to reject the wrong format.
     ROOT_NAME = ""
 
-    #: Entity references are left as references rather than expanded. lxml's
-    #: default parser expands them, which silently rewrites `&note;` into its
-    #: replacement text on save -- a change nobody asked for, in a tool whose
-    #: point is that only the requested values move. Turning resolution off also
-    #: keeps a document type definition from reaching outside the file at all.
-    PARSER = etree.XMLParser(resolve_entities=False, no_network=True)
+    #: Entities declared inside the file are expanded; entities pointing outside
+    #: it are not fetched, so an external one stays undefined and the file is
+    #: rejected rather than absorbing whatever it targeted. This has been lxml's
+    #: default since 5.0, which the dependency pin requires, and it is spelled
+    #: out because both ways of getting it wrong are quiet. Resolving everything
+    #: pulls the target of a `SYSTEM` entity straight into the output. Resolving
+    #: nothing reads a value written as a reference as no value at all, so the
+    #: sample is skipped while the lap summary above it is still repaired, and
+    #: the file is left contradicting itself.
+    PARSER = etree.XMLParser(
+        # lxml-stubs still types resolve_entities as a bool, three years after
+        # lxml 5.0 made "internal" the accepted value and the default.
+        resolve_entities="internal",  # type: ignore[arg-type]
+        no_network=True,
+    )
 
     def __init__(self, file_path: str) -> None:
         try:
