@@ -75,3 +75,57 @@ def test_text_that_is_not_a_number_is_rejected(text):
 
 def test_a_number_may_be_padded_with_whitespace():
     assert parse_number("  42.5\n") == 42.5
+
+
+ENTITY_TCX = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE TrainingCenterDatabase [ <!ENTITY note "recorded indoors"> ]>
+<TrainingCenterDatabase xmlns="urn:x">
+  <Activities><Activity>
+    <Id>2024-03-31T10:00:00.000Z</Id>
+    <Notes>&note;</Notes>
+  </Activity></Activities>
+</TrainingCenterDatabase>
+"""
+
+
+def test_an_entity_reference_is_written_back_unexpanded(tmp_path):
+    from datetime import datetime
+
+    from training_log_change.tcx import TcxModifier
+
+    path = tmp_path / "activity.tcx"
+    path.write_text(ENTITY_TCX)
+    out = tmp_path / "out.tcx"
+
+    modifier = TcxModifier(str(path))
+    modifier.update_start_time(datetime(2025, 1, 1, tzinfo=UTC))
+    modifier.save(str(out))
+    written = out.read_text()
+
+    # The declaration keeps its replacement text; the reference stays a
+    # reference instead of being silently rewritten into that text.
+    assert "<Notes>&note;</Notes>" in written
+    assert "<Notes>recorded indoors</Notes>" not in written
+
+
+def test_a_document_type_definition_cannot_reach_outside_the_file(tmp_path):
+    from training_log_change.tcx import TcxModifier
+
+    secret = tmp_path / "secret.txt"
+    secret.write_text("TOP-SECRET-TOKEN")
+    path = tmp_path / "activity.tcx"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        "<!DOCTYPE TrainingCenterDatabase "
+        f'[ <!ENTITY xxe SYSTEM "file://{secret}"> ]>\n'
+        '<TrainingCenterDatabase xmlns="urn:x">'
+        "<Id>2024-03-31T10:00:00.000Z</Id><Notes>&xxe;</Notes>"
+        "</TrainingCenterDatabase>"
+    )
+    out = tmp_path / "out.tcx"
+
+    modifier = TcxModifier(str(path))
+    modifier.speedup(2.0)
+    modifier.save(str(out))
+
+    assert "TOP-SECRET-TOKEN" not in out.read_text()
