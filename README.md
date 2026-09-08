@@ -92,6 +92,12 @@ In FIT, records are a flat stream rather than children of a lap, so each lap and
 session is repaired from the samples inside its own start-to-end window. GPX
 records no summaries, so there is nothing to repair.
 
+That replacement value has to come from somewhere. A lap whose track carries no
+readings of the kind being cleaned falls back to the peak of the rest of the
+activity, and if the file has no readings to go on at all the summaries are left
+as recorded -- a lap reporting a maximum of zero beside a non-zero average is a
+worse file than the one that came in.
+
 Lap averages are left as recorded. Recomputing an average from unevenly spaced
 samples is guesswork, and a wrong average is worse than a stale one.
 

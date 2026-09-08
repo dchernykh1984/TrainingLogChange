@@ -66,15 +66,27 @@ class TcxModifier(XmlTrackModifier):
         the sample alone would leave the summary claiming a wattage that appears
         nowhere in the track, so a summary that is itself out of range is reset
         to the highest value the lap still has.
+
+        That value has to come from somewhere. A lap whose track carries no
+        readings of this kind at all falls back to the peak of the rest of the
+        activity, and if the whole file has no readings to go on the summaries
+        are left as recorded: a lap reporting a maximum of zero next to a
+        non-zero average is a worse file than one that was left alone.
         """
         sample_names = tuple(sample_names)
         summary_names = tuple(summary_names)
-        for lap in self._laps():
-            peak = self._zero_samples(lap, sample_names, limit)
+        laps = list(self._laps())
+        peaks = [self._zero_samples(lap, sample_names, limit) for lap in laps]
+        known = [peak for peak in peaks if peak is not None]
+        if not known:
+            return
+        fallback = max(known)
+        for lap, peak in zip(laps, peaks, strict=True):
+            replacement = format_number(fallback if peak is None else peak)
             for element in find_leaves(lap, summary_names, skip="Track"):
                 value = parse_number(element.text)
                 if value is not None and value > limit:
-                    element.text = format_number(peak)
+                    element.text = replacement
 
     def _laps(self) -> Iterator[etree._Element]:
         """Every lap, or the whole document if the file records no laps."""
@@ -87,9 +99,15 @@ class TcxModifier(XmlTrackModifier):
             yield self.root
 
     @staticmethod
-    def _zero_samples(lap: etree._Element, names: Iterable[str], limit: float) -> float:
-        """Zero every out-of-range sample in ``lap`` and return the highest left."""
-        peak = 0.0
+    def _zero_samples(
+        lap: etree._Element, names: Iterable[str], limit: float
+    ) -> float | None:
+        """Zero every out-of-range sample in ``lap`` and return the highest left.
+
+        Returns None when the lap's track carries no reading of this kind, which
+        is not the same as a lap whose readings are all zero.
+        """
+        peak: float | None = None
         for point in lap.iter():
             if not isinstance(point.tag, str) or local_name(point) != "Trackpoint":
                 continue
@@ -100,5 +118,5 @@ class TcxModifier(XmlTrackModifier):
                 if value > limit:
                     element.text = "0"
                     value = 0.0
-                peak = max(peak, value)
+                peak = value if peak is None else max(peak, value)
         return peak

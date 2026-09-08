@@ -136,3 +136,55 @@ def test_rejects_a_file_without_timestamps(tmp_path):
 
     with pytest.raises(ActivityFormatError, match="no timestamps"):
         TcxModifier(str(path)).start_time()
+
+
+LAP_WITHOUT_A_TRACK = """<?xml version="1.0" encoding="UTF-8"?>
+<TrainingCenterDatabase xmlns="urn:x">
+  <Activities><Activity>
+    <Id>2024-03-31T10:00:00.000Z</Id>
+    <Lap StartTime="2024-03-31T10:00:00.000Z">
+      <AverageHeartRateBpm><Value>150</Value></AverageHeartRateBpm>
+      <MaximumHeartRateBpm><Value>230</Value></MaximumHeartRateBpm>
+    </Lap>
+  </Activity></Activities>
+</TrainingCenterDatabase>
+"""
+
+TWO_LAPS_ONE_WITHOUT_READINGS = """<?xml version="1.0" encoding="UTF-8"?>
+<TrainingCenterDatabase xmlns="urn:x">
+  <Activities><Activity>
+    <Id>2024-03-31T10:00:00.000Z</Id>
+    <Lap StartTime="2024-03-31T10:00:00.000Z">
+      <MaximumHeartRateBpm><Value>230</Value></MaximumHeartRateBpm>
+      <Track><Trackpoint>
+        <Time>2024-03-31T10:00:00.000Z</Time>
+        <HeartRateBpm><Value>150</Value></HeartRateBpm>
+      </Trackpoint></Track>
+    </Lap>
+    <Lap StartTime="2024-03-31T10:01:00.000Z">
+      <MaximumHeartRateBpm><Value>230</Value></MaximumHeartRateBpm>
+      <Track><Trackpoint><Time>2024-03-31T10:01:00.000Z</Time></Trackpoint></Track>
+    </Lap>
+  </Activity></Activities>
+</TrainingCenterDatabase>
+"""
+
+
+def test_a_lap_with_no_readings_at_all_keeps_its_summary(tmp_path):
+    path = tmp_path / "activity.tcx"
+    path.write_text(LAP_WITHOUT_A_TRACK)
+
+    out = modified(path, tmp_path, lambda m: m.cleanup_heart_rate(200))
+
+    # Reporting a maximum of zero beside an average of 150 would be a worse file
+    # than the one that came in.
+    assert values(out, "MaximumHeartRateBpm") == ["230"]
+
+
+def test_a_lap_with_no_readings_falls_back_to_the_rest_of_the_activity(tmp_path):
+    path = tmp_path / "activity.tcx"
+    path.write_text(TWO_LAPS_ONE_WITHOUT_READINGS)
+
+    out = modified(path, tmp_path, lambda m: m.cleanup_heart_rate(200))
+
+    assert values(out, "MaximumHeartRateBpm") == ["150", "150"]
