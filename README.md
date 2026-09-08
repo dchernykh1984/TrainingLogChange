@@ -18,8 +18,8 @@ Evidence in the code:
 * The tags it reads and rewrites are TCX-specific: `TotalTimeSeconds`, `MaximumSpeed`,
   `Speed`, `Time`, `StartTime`, `Lap/@StartTime`, `HeartRateBpm/Value`
   ([tcx_modifier.py:16-22](tcx_modifier.py#L16-L22)). Tags are matched by local name
-  (`element.tag.split("}")[-1]`), so the TCX namespaces — including the
-  `ActivityExtension` namespace that carries power and cadence — are handled transparently.
+  (`element.tag.split("}")[-1]`), so the TCX namespaces -- including the
+  `ActivityExtension` namespace that carries power and cadence -- are handled transparently.
 
 Why TCX rather than the alternatives:
 
@@ -49,7 +49,7 @@ python main.py INPUT OUTPUT [--speedup S] [--max_hr N] [--max_power P] [--max_ca
 | `--max_cadence` | int | Cadence values above this are treated as sensor errors and zeroed (a magnetic cadence sensor can report ~200 rpm for a second) |
 | `--start_date` | `%Y-%m-%dT%H:%M:%S.%fZ` | New start time, e.g. `2024-03-31T23:53:51.000Z`. Every `Time` and each `Lap/@StartTime` is shifted by the same offset |
 
-Example — make a ride 5% faster and move it to a different day:
+Example -- make a ride 5% faster and move it to a different day:
 
 ```
 python main.py ride.tcx ride_fixed.tcx --speedup 1.05 --start_date 2024-03-31T23:53:51.000Z
@@ -73,5 +73,5 @@ pre-commit install
 Implemented: `speedup`, `update_start_time`, `save`.
 
 Not implemented yet (the methods exist as stubs and silently do nothing):
-`cleanup_heart_rate`, `cleanup_power`, `cleanup_canence` — so `--max_hr`,
+`cleanup_heart_rate`, `cleanup_power`, `cleanup_canence` -- so `--max_hr`,
 `--max_power` and `--max_cadence` currently have no effect on the output.
