@@ -60,11 +60,12 @@ cleanup, heart rate cleanup, speed-up, start date.
 
 ## Requirements
 
-Python 3 and [lxml](https://lxml.de/). `requirements.txt` is currently empty — install
-the dependency manually:
+Python 3.11+ and [lxml](https://lxml.de/). Dependencies and the lint/type/test tooling
+are declared in `pyproject.toml`:
 
 ```
-pip install lxml
+uv sync            # or: pip install -e . --group dev
+pre-commit install
 ```
 
 ## Status

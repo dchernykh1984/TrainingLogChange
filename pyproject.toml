@@ -1,0 +1,71 @@
+[project]
+name = "training-log-change"
+version = "0.1.0"
+description = "Modify recorded training activities in TCX, FIT and GPX format"
+authors = [{ name = "Denis Chernykh" }]
+readme = "README.md"
+requires-python = ">=3.11,<4"
+dependencies = [
+    "lxml>=5.0,<7",
+    "fit-tool>=0.9.16,<1",
+]
+
+[project.scripts]
+training-log-change = "training_log_change.cli:main"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15,<0.17",
+    "pre-commit>=4.6.0,<5",
+    "mypy>=1.20.2,<3",
+    "lxml-stubs>=0.5,<0.6",
+    "commitizen>=4.13.10,<5",
+    "pytest>=9.0,<10",
+    "pytest-cov>=7.1.0,<8",
+]
+
+[tool.uv]
+default-groups = "all"
+
+[tool.uv.build-backend]
+module-name = ["training_log_change"]
+module-root = ""
+
+# Build with uv's backend so the console script (project.scripts) installs under uv,
+# matching the sibling projects.
+[build-system]
+requires = ["uv_build>=0.11,<0.13"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "C90", # McCabe cyclomatic complexity
+    "UP",  # pyupgrade - modernise syntax for target Python version
+    "B",   # flake8-bugbear - common bugs and design issues
+    "S",   # flake8-bandit - security
+    "PTH", # flake8-use-pathlib - prefer pathlib over os.path
+    "RUF", # Ruff-specific rules
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.mypy]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--cov=training_log_change --cov-fail-under=90 --cov-report=term-missing"
