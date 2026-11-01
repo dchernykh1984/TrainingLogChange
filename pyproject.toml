@@ -15,7 +15,7 @@ training-log-change = "training_log_change.cli:main"
 
 [dependency-groups]
 dev = [
-    "ruff>=0.15,<0.17",
+    "ruff>=0.15,<0.18",
     "pre-commit>=4.6.0,<5",
     "mypy>=1.20.2,<3",
     "lxml-stubs>=0.5,<0.6",
